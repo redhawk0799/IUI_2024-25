@@ -4,6 +4,7 @@
 import time
 import _setup_sys_path
 import datasets as ds
+from datasets import load_dataset
 
 from teslasuit_sdk import ts_api
 import teslasuit_sdk.subsystems.ts_haptic
@@ -13,9 +14,8 @@ TOUCH_DURATION_MS = 3000
 
 def main():
     try:
-
-        ds.load_dataset("dasgringuen/assettoCorsaGym")
-        print("test8")
+        dataset = load_dataset("dasgringuen/assettoCorsaGym")
+        print("test")
 
 
         """print("Initialize API")
