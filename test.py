@@ -1,6 +1,10 @@
 import socket
 import struct
 
+from teslasuit_sdk import ts_api
+import teslasuit_sdk.subsystems.ts_haptic
+from teslasuit_sdk.ts_mapper import TsBone2dIndex
+
 # Define the IP and port to listen on
 LISTEN_IP = "127.0.0.1"  # Listen on all available interfaces
 LISTEN_PORT = 27152  # Replace with the port your server is sending data to
@@ -23,7 +27,7 @@ def start_udp_listener():
             our_data = struct.unpack(format, data)
 
             normalized_data = {
-                "x_cor" : our_data[0][:4],
+                "x_cor" : our_data[0],
                 "y_cor" : our_data[1],
                 "z_cor" : our_data[2],
                 "speed" : our_data[3]
