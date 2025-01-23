@@ -27,10 +27,10 @@ def start_udp_listener():
             our_data = struct.unpack(format, data)
 
             normalized_data = {
-                "x_cor" : our_data[0],
-                "y_cor" : our_data[1],
-                "z_cor" : our_data[2],
-                "speed" : our_data[3]
+                "x_cor" : round(our_data[0], 3),
+                "y_cor" : round(our_data[1], 3),
+                "z_cor" : round(our_data[2], 3),
+                "speed" : round(our_data[3], 3)
             }
 
             print(f"Data: {normalized_data}")

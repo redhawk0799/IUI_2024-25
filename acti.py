@@ -522,7 +522,7 @@ def acUpdate(deltaT):
 
         PackingString += "l"; PackingList.append(int(sim_info_obj.static.aidAutoBlip))
         # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        # flotschi flakuli test
+        # flotschi flakuli tes
         OurTest = "<"; OurList = []
         OurTest += "f"; OurList.append(ac.getCarState(0, acsys.CS.WorldPosition)[0])
         OurTest += "f"; OurList.append(ac.getCarState(0, acsys.CS.WorldPosition)[1])
