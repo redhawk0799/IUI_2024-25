@@ -1,3 +1,5 @@
+
+
 # power for TeslaSuit
 power = {
     "soft": 40,

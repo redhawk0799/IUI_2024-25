@@ -2,13 +2,14 @@ import socket
 import struct
 import pandas as pd
 import numpy as np
+import time
 
 from teslasuit_sdk import ts_api
 import teslasuit_sdk.subsystems.ts_haptic
 from teslasuit_sdk.ts_mapper import TsBone2dIndex
 import config_tesla
 
-connect = False
+connect = True
 
 # Define the IP and port to listen on
 LISTEN_IP = "127.0.0.1"  # Listen on all available interfaces
@@ -39,6 +40,19 @@ areas = {
 
 
 def start_udp_listener():
+    print("Initialize API")
+    api = ts_api.TsApi()
+
+    device = api.get_device_manager().get_or_wait_last_device_attached()
+    player = device.haptic
+    mapper = api.mapper
+
+    print("Setup channels to play and touch parameters")
+    layout = mapper.get_haptic_electric_channel_layout(device.get_mapping())
+    bones = mapper.get_layout_bones(layout)
+
+
+
     # Create a UDP socket
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -47,7 +61,7 @@ def start_udp_listener():
 
     print(f"Listening for UDP data on {LISTEN_IP}:{LISTEN_PORT}...")
 
-    csv_data = pd.read_csv('./dummy_data.csv', usecols=['currentTime', 'world_position_x', 'world_position_y'])
+    csv_data = pd.read_csv('./actual_data.csv', usecols=['currentTime', 'world_position_x', 'world_position_y', 'speed'])
 
     start_time = csv_data.iloc[0]['currentTime']
     list_with_interval = []
@@ -66,68 +80,69 @@ def start_udp_listener():
 
     average_x_data = []
     average_y_data = []
+    average_speed_data = []
 
     for data in split_data:
         numpy_array = np.array(data)
         x_values = numpy_array[:, 1]
         y_values = numpy_array[:, 2]
+        speed_vals = numpy_array[:, 3]
+        average_speed = speed_vals.mean()
         average_x = x_values.mean()
         average_y = y_values.mean()
 
         average_x_data.append(round(average_x.tolist(), 3))
         average_y_data.append(round(average_y.tolist(), 3))
+        average_speed_data.append(round(average_speed.tolist(), 3))
 
-    all_coordinates = list(zip(average_x_data, average_y_data)) # this groups the data as a list of coordinates
-
-    print(f"coordinates: {all_coordinates}")
-    return
+    all_coordinates = list(zip(average_speed_data, average_y_data, average_x_data)) # this groups the data as a list of coordinates
 
     try:
+        start_time = time.time()
+        array_for_interval = []
         while True:
             # Receive data from the sender
-            data, addr = udp_socket.recvfrom(16)  # Buffer size of 1024 bytes
+            data, addr = udp_socket.recvfrom(16)
             format = "ffff"
             our_data = struct.unpack(format, data)
 
-            normalized_data = {
-                "x_cor" : round(our_data[0], 3),
-                "y_cor" : round(our_data[1], 3),
-                "z_cor" : round(our_data[2], 3),
-                "speed" : round(our_data[3], 3)
-            }
+            normalized_data = [round(our_data[0], 3), round(our_data[2], 3), round(our_data[1], 3), round(our_data[3], 3)]
 
-            print(f"Data: {normalized_data}")
+            array_for_interval.append(normalized_data)
+            if time.time() > start_time + 0.25:
+                mean_data_of_incoming = np.array(array_for_interval)
+                mean_array_of_incoming = [round(mean_data_of_incoming[:, 1].mean(), 3), round(mean_data_of_incoming[:, 0].mean(), 3),  round(mean_data_of_incoming[:, 3].mean(), 3)]
+
+                signal = []
+                # check for x
+                if not all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5: # [-1187.798, 640.779, 0.01]
+                    print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {all_coordinates[0][0]}')
+                    signal = ["LeftFrontUpperArm", 80, 500]
+                if not all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
+                    print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {all_coordinates[0][1]}')
+                    signal = ["RightFrontUpperArm", 80, 500]
+
+                if not all_coordinates[0][2] - 5 < mean_array_of_incoming[2]:
+                    print(f'too slow. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                    signal = ["LeftFrontUpperLeg", 80, 500]
+                if not mean_array_of_incoming[2] < all_coordinates[0][2] + 5:
+                    print(f'too fast. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                    signal = ["RightFrontUpperLeg", 80, 500]
+
+                if len(signal) <= 0:
+                    continue
+
+                channels = mapper.get_bone_contents(bones[areas[signal[0]]])
+                params = player.create_touch_parameters(100, 40, signal[1])
+                playable_id = player.create_touch(params, channels, signal[2])
+                #player.play_playable(playable_id)
+
+                break # TODO delete coordinates from all_coordinates after being used
 
     except KeyboardInterrupt:
         print("Stopping UDP listener.")
     finally:
         udp_socket.close()
 
-def connectToSuit():
-    location = ['Pectoral_L', 'Tricep_L', 'Shoulder_L', 'Bicep_L',
-                'BackUp_L', 'BackDown_L', 'Pectoral_R', 'Tricep_R', 'Shoulder_R',
-                'Bicep_R', 'BackUp_R', 'BackDown_R']
-
-    print("Initialize API")
-    api = ts_api.TsApi()
-
-    device = api.get_device_manager().get_or_wait_last_device_attached()
-    player = device.haptic
-    mapper = api.mapper
-
-    print("Setup channels to play and touch parameters")
-    layout = mapper.get_haptic_electric_channel_layout(device.get_mapping())
-    bones = mapper.get_layout_bones(layout)
-
-    signal = []
-
-    channels = mapper.get_bone_contents(bones[areas[signal[0]]])
-    params = player.create_touch_parameters(100, 40, signal[1])
-    playable_id = player.create_touch(params, channels, signal[2])
-    player.play_playable(playable_id)
-
 if __name__ == "__main__":
-    if connect:
-        connectToSuit()
-
     start_udp_listener()
