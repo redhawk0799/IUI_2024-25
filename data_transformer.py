@@ -9,8 +9,6 @@ import teslasuit_sdk.subsystems.ts_haptic
 from teslasuit_sdk.ts_mapper import TsBone2dIndex
 import config_tesla
 
-connect = True
-
 # Define the IP and port to listen on
 LISTEN_IP = "127.0.0.1"  # Listen on all available interfaces
 LISTEN_PORT = 27152  # Replace with the port your server is sending data to
@@ -97,9 +95,10 @@ def start_udp_listener():
 
     all_coordinates = list(zip(average_speed_data, average_y_data, average_x_data)) # this groups the data as a list of coordinates
 
+    array_for_interval = []
+    start_time = time.time()
+
     try:
-        start_time = time.time()
-        array_for_interval = []
         while True:
             # Receive data from the sender
             data, addr = udp_socket.recvfrom(16)
@@ -109,35 +108,42 @@ def start_udp_listener():
             normalized_data = [round(our_data[0], 3), round(our_data[2], 3), round(our_data[1], 3), round(our_data[3], 3)]
 
             array_for_interval.append(normalized_data)
-            if time.time() > start_time + 0.25:
-                mean_data_of_incoming = np.array(array_for_interval)
-                mean_array_of_incoming = [round(mean_data_of_incoming[:, 1].mean(), 3), round(mean_data_of_incoming[:, 0].mean(), 3),  round(mean_data_of_incoming[:, 3].mean(), 3)]
+            if time.time() <= start_time + 0.25:
+                continue
 
-                signal = []
-                # check for x
-                if not all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5: # [-1187.798, 640.779, 0.01]
-                    print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {all_coordinates[0][0]}')
-                    signal = ["LeftFrontUpperArm", 80, 500]
-                if not all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
-                    print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {all_coordinates[0][1]}')
-                    signal = ["RightFrontUpperArm", 80, 500]
+            # clear the first coordinate to look ahead
+            all_coordinates = all_coordinates[1:]
 
-                if not all_coordinates[0][2] - 5 < mean_array_of_incoming[2]:
-                    print(f'too slow. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
-                    signal = ["LeftFrontUpperLeg", 80, 500]
-                if not mean_array_of_incoming[2] < all_coordinates[0][2] + 5:
-                    print(f'too fast. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
-                    signal = ["RightFrontUpperLeg", 80, 500]
+            mean_data_of_incoming = np.array(array_for_interval)
+            mean_array_of_incoming = [round(mean_data_of_incoming[:, 1].mean(), 3), round(mean_data_of_incoming[:, 0].mean(), 3),  round(mean_data_of_incoming[:, 3].mean(), 3)]
 
-                if len(signal) <= 0:
-                    continue
+            signal = []
+            # check for x
+            if not all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5: # [-1187.798, 640.779, 0.01]
+                print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {all_coordinates[0][0]}')
+                signal = [["LeftFrontUpperArm", "LeftFrontLowerArm", "LeftBackUpperArm", "LeftBackLowerArm"], 80, 500]
+            if not all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
+                print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {all_coordinates[0][1]}')
+                signal = [["RightFrontUpperArm", "RightFrontLowerArm", "RightBackUpperArm", "RightBackLowerArm"], 80, 500]
 
-                channels = mapper.get_bone_contents(bones[areas[signal[0]]])
-                params = player.create_touch_parameters(100, 40, signal[1])
-                playable_id = player.create_touch(params, channels, signal[2])
-                #player.play_playable(playable_id)
+            if not all_coordinates[0][2] - 5 < mean_array_of_incoming[2]:
+                print(f'too slow. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                signal = ["RightFrontLowerLeg", 80, 500]
+            if not mean_array_of_incoming[2] < all_coordinates[0][2] + 5:
+                print(f'too fast. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                signal = ["LeftFrontLowerLeg", 80, 500]
 
-                break # TODO delete coordinates from all_coordinates after being used
+            if len(signal) <= 0:
+                continue
+
+            channels = mapper.get_bone_contents(bones[areas[signal[0]]])
+            params = player.create_touch_parameters(100, 40, signal[1])
+            playable_id = player.create_touch(params, channels, signal[2])
+            player.play_playable(playable_id)
+
+            # reset the used array and get the new time
+            array_for_interval = []
+            start_time = time.time()
 
     except KeyboardInterrupt:
         print("Stopping UDP listener.")
