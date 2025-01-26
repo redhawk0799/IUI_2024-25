@@ -154,8 +154,8 @@ def start_udp_listener():
                 #player.play_playable(playable_id)
 
                 # reset the used array and get the new time
-                array_for_interval = []
-                start_time = time.time()
+            array_for_interval = []
+            start_time = time.time()
 
     except KeyboardInterrupt:
         print("Stopping UDP listener.")
