@@ -98,6 +98,7 @@ def start_udp_listener():
     array_for_interval = []
     start_time = time.time()
     reached_start = False
+    old_mean_array_of_incoming = []
 
     try:
         while True:
@@ -118,13 +119,18 @@ def start_udp_listener():
 
             mean_data_of_incoming = np.array(array_for_interval)
             mean_array_of_incoming = [round(mean_data_of_incoming[:, 1].mean(), 3), round(mean_data_of_incoming[:, 0].mean(), 3),  round(mean_data_of_incoming[:, 3].mean(), 3)]
+            if not old_mean_array_of_incoming:
+                old_mean_array_of_incoming = mean_array_of_incoming
+
 
             if not reached_start:
                 if all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5 and all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
                     reached_start = True
                 else:
-                    print("Please go to start point:", all_coordinates[0])
-                    print("You are at:", mean_array_of_incoming[0], mean_array_of_incoming[1])
+                    if old_mean_array_of_incoming != mean_array_of_incoming:
+                        old_mean_array_of_incoming = mean_array_of_incoming
+                        print("Please go to start point:", all_coordinates[0])
+                        print("You are at:", mean_array_of_incoming[0], mean_array_of_incoming[1])
 
             if reached_start:
                 all_coordinates = all_coordinates[1:]
