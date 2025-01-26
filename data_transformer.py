@@ -38,16 +38,16 @@ areas = {
 
 
 def start_udp_listener():
-    print("Initialize API")
-    api = ts_api.TsApi()
+    #print("Initialize API")
+    #api = ts_api.TsApi()
 
-    device = api.get_device_manager().get_or_wait_last_device_attached()
-    player = device.haptic
-    mapper = api.mapper
+    #device = api.get_device_manager().get_or_wait_last_device_attached()
+    #player = device.haptic
+    #mapper = api.mapper
 
-    print("Setup channels to play and touch parameters")
-    layout = mapper.get_haptic_electric_channel_layout(device.get_mapping())
-    bones = mapper.get_layout_bones(layout)
+    #print("Setup channels to play and touch parameters")
+    #layout = mapper.get_haptic_electric_channel_layout(device.get_mapping())
+    #bones = mapper.get_layout_bones(layout)
 
 
 
@@ -97,6 +97,7 @@ def start_udp_listener():
 
     array_for_interval = []
     start_time = time.time()
+    reached_start = False
 
     try:
         while True:
@@ -111,39 +112,50 @@ def start_udp_listener():
             if time.time() <= start_time + 0.25:
                 continue
 
+
             # clear the first coordinate to look ahead
-            all_coordinates = all_coordinates[1:]
+
 
             mean_data_of_incoming = np.array(array_for_interval)
             mean_array_of_incoming = [round(mean_data_of_incoming[:, 1].mean(), 3), round(mean_data_of_incoming[:, 0].mean(), 3),  round(mean_data_of_incoming[:, 3].mean(), 3)]
 
-            signal = []
-            # check for x
-            if not all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5: # [-1187.798, 640.779, 0.01]
-                print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {all_coordinates[0][0]}')
-                signal = [["LeftFrontUpperArm", "LeftFrontLowerArm", "LeftBackUpperArm", "LeftBackLowerArm"], 80, 500]
-            if not all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
-                print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {all_coordinates[0][1]}')
-                signal = [["RightFrontUpperArm", "RightFrontLowerArm", "RightBackUpperArm", "RightBackLowerArm"], 80, 500]
+            if not reached_start:
+                if all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5 and all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
+                    reached_start = True
+                else:
+                    print("Please go to start point:", all_coordinates[0])
+                    print("You are at:", mean_array_of_incoming[0], mean_array_of_incoming[1])
 
-            if not all_coordinates[0][2] - 5 < mean_array_of_incoming[2]:
-                print(f'too slow. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
-                signal = ["RightFrontLowerLeg", 80, 500]
-            if not mean_array_of_incoming[2] < all_coordinates[0][2] + 5:
-                print(f'too fast. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
-                signal = ["LeftFrontLowerLeg", 80, 500]
+            if reached_start:
+                all_coordinates = all_coordinates[1:]
 
-            if len(signal) <= 0:
-                continue
+                signal = []
+                # check for x
+                if not all_coordinates[0][0] - 5 < mean_array_of_incoming[0] < all_coordinates[0][0] + 5: # [-1187.798, 640.779, 0.01]
+                    print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {all_coordinates[0][0]}')
+                    signal = [["LeftFrontUpperArm", "LeftFrontLowerArm", "LeftBackUpperArm", "LeftBackLowerArm"], 80, 500]
+                if not all_coordinates[0][1] - 5 < mean_array_of_incoming[1] < all_coordinates[0][1] + 5:
+                    print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {all_coordinates[0][1]}')
+                    signal = [["RightFrontUpperArm", "RightFrontLowerArm", "RightBackUpperArm", "RightBackLowerArm"], 80, 500]
 
-            channels = mapper.get_bone_contents(bones[areas[signal[0]]])
-            params = player.create_touch_parameters(100, 40, signal[1])
-            playable_id = player.create_touch(params, channels, signal[2])
-            player.play_playable(playable_id)
+                if not all_coordinates[0][2] - 5 < mean_array_of_incoming[2]:
+                    print(f'too slow. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                    signal = ["RightFrontLowerLeg", 80, 500]
+                if not mean_array_of_incoming[2] < all_coordinates[0][2] + 5:
+                    print(f'too fast. IST {mean_array_of_incoming[2]} SOLL {all_coordinates[0][2]}')
+                    signal = ["LeftFrontLowerLeg", 80, 500]
 
-            # reset the used array and get the new time
-            array_for_interval = []
-            start_time = time.time()
+                if len(signal) <= 0:
+                    continue
+
+                #channels = mapper.get_bone_contents(bones[areas[signal[0]]])
+                #params = player.create_touch_parameters(100, 40, signal[1])
+                #playable_id = player.create_touch(params, channels, signal[2])
+                #player.play_playable(playable_id)
+
+                # reset the used array and get the new time
+                array_for_interval = []
+                start_time = time.time()
 
     except KeyboardInterrupt:
         print("Stopping UDP listener.")
