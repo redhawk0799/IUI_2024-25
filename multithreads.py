@@ -167,7 +167,22 @@ class HapticFeedbackSystem:
             else:
                 target_coord = self.all_coordinates[closest_idx]  # Default to the closest if no next exists
 
-            self.send_haptic_feedback(mean_array_of_incoming, target_coord)
+            if closest_idx - 1 >= 0:
+                prev_coord = self.all_coordinates[closest_idx - 1]
+            else:
+                prev_coord = self.all_coordinates[closest_idx]
+
+            optimal_vector = np.array([
+                target_coord[0] - prev_coord[0],
+                target_coord[1] - prev_coord[1]
+            ])
+
+            current_vector = np.array([
+                target_coord[0] - mean_array_of_incoming[0],
+                target_coord[1] - mean_array_of_incoming[1]
+            ])
+
+            self.send_haptic_feedback(mean_array_of_incoming, target_coord, optimal_vector, current_vector)
 
     def find_closest_position(self, current_position):
         """Find the index of the closest position in all_coordinates."""
@@ -191,7 +206,7 @@ class HapticFeedbackSystem:
             coord[1] - 5 < mean_array_of_incoming[1] < coord[1] + 5
         ])
 
-    def send_haptic_feedback(self, mean_array_of_incoming, target_coord):
+    def send_haptic_feedback(self, mean_array_of_incoming, target_coord, optimal_vector, current_vector):
         """Send haptic feedback based on deviations."""
         current_time = time.time()
 
@@ -202,13 +217,38 @@ class HapticFeedbackSystem:
             mean_array_of_incoming,
             mean_array_of_incoming[2],  # Speed as an example factor
             "straight")
+
+        if np.linalg.norm(optimal_vector) > 0:
+            optimal_vector = optimal_vector / np.linalg.norm(optimal_vector)
+        if np.linalg.norm(current_vector) > 0:
+            current_vector = current_vector / np.linalg.norm(current_vector)
+
+        dot_product = np.dot(optimal_vector, current_vector)
+        angle = np.arccos(np.clip(dot_product, -1.0, 1.0))  # Angle in radians
+        angle_degrees = np.degrees(angle)
+
+        cross_product = np.cross(optimal_vector, current_vector)  # Cross product in 2D
+        deviation_side = "left" if cross_product > 0 else "right" if cross_product < 0 else "aligned"
+
+        direction_threshold = 10
+
         signal = []
-        if not target_coord[0] - dynamic_threshold_x < mean_array_of_incoming[0] < target_coord[0] + dynamic_threshold_x:
-            print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {target_coord[0]}')
-            signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
-        if not target_coord[1] - dynamic_threshold_y < mean_array_of_incoming[1] < target_coord[1] + dynamic_threshold_y:
-            print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {target_coord[1]}')
-            signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
+
+        if angle_degrees > direction_threshold:
+            print(f"Directional deviation detected: {angle_degrees:.2f}° to the {deviation_side}")
+
+            if deviation_side == "left":
+                signal = ["LeftUpperArm", "LeftLowerArm"]
+            elif deviation_side == "right":
+                signal = ["RightUpperArm", "RightLowerArm"]
+
+
+        # if not target_coord[0] - dynamic_threshold_x < mean_array_of_incoming[0] < target_coord[0] + dynamic_threshold_x:
+        #     print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {target_coord[0]}')
+        #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
+        # if not target_coord[1] - dynamic_threshold_y < mean_array_of_incoming[1] < target_coord[1] + dynamic_threshold_y:
+        #     print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {target_coord[1]}')
+        #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
         if mean_array_of_incoming[2] < target_coord[2] - dynamic_threshold_speed:
             print(f'Speed is too slow. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
             signal.append("RightThigh")
