@@ -166,7 +166,6 @@ class HapticFeedbackSystem:
                             abs(mean_array_of_incoming[1] - old_mean_array_of_incoming[1]) > 0.1):
                         print("Please go to start point:", self.all_coordinates[0])
                         print("You are at:", mean_array_of_incoming[0], mean_array_of_incoming[1])
-                    old_mean_array_of_incoming = mean_array_of_incoming
                     continue
 
             # Process feedback
@@ -193,7 +192,17 @@ class HapticFeedbackSystem:
                 target_coord[1] - mean_array_of_incoming[1]
             ])
 
-            self.send_haptic_feedback(mean_array_of_incoming, target_coord, optimal_vector, current_vector)
+            direction_vector = np.array([
+                mean_array_of_incoming[0] - old_mean_array_of_incoming[0],
+                mean_array_of_incoming[1] - old_mean_array_of_incoming[1],
+            ])
+
+            if np.linalg.norm(direction_vector) > 0:
+                direction_vector = direction_vector / np.linalg.norm(direction_vector)
+
+            self.send_haptic_feedback(mean_array_of_incoming, target_coord, optimal_vector, current_vector, direction_vector)
+
+            old_mean_array_of_incoming = mean_array_of_incoming
 
     def find_closest_position(self, current_position):
         """Find the index of the closest position in all_coordinates."""
@@ -217,7 +226,7 @@ class HapticFeedbackSystem:
             coord[1] - 5 < mean_array_of_incoming[1] < coord[1] + 5
         ])
 
-    def send_haptic_feedback(self, mean_array_of_incoming, target_coord, optimal_vector, current_vector):
+    def send_haptic_feedback(self, mean_array_of_incoming, target_coord, optimal_vector, current_vector, direction_vector):
         """Send haptic feedback based on deviations."""
         current_time = time.time()
 
@@ -238,6 +247,12 @@ class HapticFeedbackSystem:
         angle = np.arccos(np.clip(dot_product, -1.0, 1.0))  # Angle in radians
         angle_degrees = np.degrees(angle)
 
+        dot_product_optimal = np.dot(optimal_vector, direction_vector)
+        dot_product_current = np.dot(current_vector, direction_vector)
+
+        angle_to_optimal = np.degrees(np.arccos(np.clip(dot_product_optimal, -1.0, 1.0)))
+        angle_to_current = np.degrees(np.arccos(np.clip(dot_product_current, -1.0, 1.0)))
+
         cross_product = np.cross(optimal_vector, current_vector)  # Cross product in 2D
         deviation_side = "left" if cross_product > 0 else "right" if cross_product < 0 else "aligned"
 
@@ -245,34 +260,35 @@ class HapticFeedbackSystem:
 
         signal = []
 
-        if angle_degrees > direction_threshold:
-            print(f"Directional deviation detected: {angle_degrees:.2f}° to the {deviation_side}")
+        if angle_to_optimal > direction_threshold:
+            print(f"Directional deviation detected: {angle_to_optimal:.2f}° to the {deviation_side}")
 
             if deviation_side == "left":
                 # signal = ["LeftUpperArm", "LeftLowerArm"]
-                signal = [["LeftFrontUpperArm", "LeftFrontLowerArm", "LeftBackUpperArm", "LeftBackLowerArm"], 80, 500]
+                signal = ["LeftFrontLowerArm", 80, 500]
+                print("Drive more left")
             elif deviation_side == "right":
                 # signal = ["RightUpperArm", "RightLowerArm"]
-                signal = [["RightFrontUpperArm", "RightFrontLowerArm", "RightBackUpperArm", "RightBackLowerArm"], 80,
-                          500]
+                signal = ["RightFrontLowerArm", 80, 500]
+                print("Drive more right")
 
 
         # if not target_coord[0] - dynamic_threshold_x < mean_array_of_incoming[0] < target_coord[0] + dynamic_threshold_x:
         #     print(f'X is wrong. IST {mean_array_of_incoming[0]} SOLL {target_coord[0]}')
         #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
         # if not target_coord[1] - dynamic_threshold_y < mean_array_of_incoming[1] < target_coord[1] + dynamic_threshold_y:
-        #     print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {target_coord[1]}')
-        #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
-        if mean_array_of_incoming[2] < target_coord[2] - dynamic_threshold_speed:
-            print(f'Speed is too slow. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
-            # signal.append("RightThigh")
-            # signal.append("RightLowerLeg")
-            signal = ["RightFrontLowerLeg", 80, 500]
-        elif mean_array_of_incoming[2] > target_coord[2] + dynamic_threshold_speed:
-            print(f'Speed is too fast. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
-            # signal.append("LeftThigh")
-            # signal.append("LeftLowerLeg")
-            signal = ["LeftFrontLowerLeg", 80, 500]
+            #     print(f'Y is wrong. IST {mean_array_of_incoming[1]} SOLL {target_coord[1]}')
+            #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
+            elif mean_array_of_incoming[2] < target_coord[2] - dynamic_threshold_speed:
+                #print(f'Speed is too slow. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
+                # signal.append("RightThigh")
+                # signal.append("RightLowerLeg")
+                signal = ["RightFrontLowerLeg", 80, 500]
+            elif mean_array_of_incoming[2] > target_coord[2] + dynamic_threshold_speed:
+                #print(f'Speed is too fast. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
+                # signal.append("LeftThigh")
+                # signal.append("LeftLowerLeg")
+                signal = ["LeftFrontLowerLeg", 80, 500]
 
 
         # Tesla Suit integration can go here
