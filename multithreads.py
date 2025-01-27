@@ -51,6 +51,17 @@ class HapticFeedbackSystem:
         self.last_feedback_time = 0
         self.feedback_interval = 0.25
 
+        print("Initialize API")
+        self.api = ts_api.TsApi()
+
+        self.device = self.api.get_device_manager().get_or_wait_last_device_attached()
+        self.player = self.device.haptic
+        self.mapper = self.api.mapper
+
+        print("Setup channels to play and touch parameters")
+        layout = self.mapper.get_haptic_electric_channel_layout(self.device.get_mapping())
+        self.bones = self.mapper.get_layout_bones(layout)
+
     def preprocess_csv_data(self, csv_data):
         """Preprocess CSV data to group by 0.25-second intervals."""
         start_time = csv_data.iloc[0]['currentTime']
@@ -238,9 +249,12 @@ class HapticFeedbackSystem:
             print(f"Directional deviation detected: {angle_degrees:.2f}° to the {deviation_side}")
 
             if deviation_side == "left":
-                signal = ["LeftUpperArm", "LeftLowerArm"]
+                # signal = ["LeftUpperArm", "LeftLowerArm"]
+                signal = [["LeftFrontUpperArm", "LeftFrontLowerArm", "LeftBackUpperArm", "LeftBackLowerArm"], 80, 500]
             elif deviation_side == "right":
-                signal = ["RightUpperArm", "RightLowerArm"]
+                # signal = ["RightUpperArm", "RightLowerArm"]
+                signal = [["RightFrontUpperArm", "RightFrontLowerArm", "RightBackUpperArm", "RightBackLowerArm"], 80,
+                          500]
 
 
         # if not target_coord[0] - dynamic_threshold_x < mean_array_of_incoming[0] < target_coord[0] + dynamic_threshold_x:
@@ -251,12 +265,14 @@ class HapticFeedbackSystem:
         #     signal = ["LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm"]
         if mean_array_of_incoming[2] < target_coord[2] - dynamic_threshold_speed:
             print(f'Speed is too slow. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
-            signal.append("RightThigh")
-            signal.append("RightLowerLeg")
+            # signal.append("RightThigh")
+            # signal.append("RightLowerLeg")
+            signal = ["RightFrontLowerLeg", 80, 500]
         elif mean_array_of_incoming[2] > target_coord[2] + dynamic_threshold_speed:
             print(f'Speed is too fast. IST {mean_array_of_incoming[2]} SOLL {target_coord[2]}')
-            signal.append("LeftThigh")
-            signal.append("LeftLowerLeg")
+            # signal.append("LeftThigh")
+            # signal.append("LeftLowerLeg")
+            signal = ["LeftFrontLowerLeg", 80, 500]
 
 
         # Tesla Suit integration can go here
@@ -265,6 +281,10 @@ class HapticFeedbackSystem:
             self.simulator.highlight_areas(signal)
             self.last_feedback_time = current_time
 
+            channels = self.mapper.get_bone_contents(self.bones[areas[signal[0]]])
+            params = self.player.create_touch_parameters(100, 40, signal[1])
+            playable_id = self.player.create_touch(params, channels, signal[2])
+            self.player.play_playable(playable_id)
 
     def start(self):
         """Start the system."""
@@ -283,7 +303,7 @@ class HapticFeedbackSystem:
             processor_thread.join()
             print("System stopped.")
 
-if __name__ == "__main__":
-    system = HapticFeedbackSystem()
-    simulator = SuitSimulator()
-    system.start()
+# if __name__ == "__main__":
+#     system = HapticFeedbackSystem()
+#     simulator = SuitSimulator()
+#     system.start()

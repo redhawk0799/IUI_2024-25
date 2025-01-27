@@ -45,7 +45,6 @@ class SuitSimulator:
 
     def highlight_areas(self, areas):
         """Highlight specified areas on the suit."""
-        print(areas)
         with self.lock:
             self.current_highlights = areas
 
